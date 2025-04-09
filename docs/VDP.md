@@ -26,21 +26,28 @@ Similar to the pallete bank addresses, but for the texture indexes, behave the s
 
 This is the address of the framebuffer, or better defined as the draw target for ARI.
 
-### 0x000020 - 0x000022 | `FSIZE` | Framebuffer Size
+### 0x000020 - 0x000022 | `SIZE` | Framebuffer Size
 
 Represents the size of the current framebuffer, as such:
 
 | Byte 1 | Byte 2 | Byte 3 |
 | :-: | :-: | :-: |
-| width ( upper 8 bits ) | width (lower 4 bits)/ height (upper 4 bits) | height (lower 8 bits) |
+| width ( upper 8 bits ) | width ( lower 8 bits ) | height |
 
-### 0x000023 - 0x000025 | `TEXSIZE` | Texture Size
+for reference, the standard framebuffer of 320x240 has a size of ~153.6kb.
 
-The dimensions for **every** texture, it is very important to reset this after you change it, otherwise textures may be rendered incorrectly, by default this is 256x256.
+**Note:** By the time ARI finishes processing a frame ( end of command list), the framebuffer size *needs* to be set to 320x240. So don't forget to reset this if you mess with draw targets and texture rendering!!
 
-| Byte 1 | Byte 2 | Byte 3 |
+## Texture formats
+
+ARI supports 4 texture formats, which are selected by bits 5 and 6 of the control byte:
+
+| Format | Description | Size ( for a 256x256 texture) |
 | :-: | :-: | :-: |
-| width ( upper 8 bits ) | width ( lower 4 bits ) / height ( upper 4 bits) | height ( lower 8s bits ) |
+| 00 | 8bpp palette mode | 64kb |
+| 01 | 4bpp palette mode | 32kb |
+| 10 | 16-bit ARGB mode | 128kb |
+| 11 | 8bpp grayscale mode | 32kb |
 
 ## General command format
 
