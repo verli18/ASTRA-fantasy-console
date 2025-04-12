@@ -13,11 +13,11 @@ The CPU is a 32-bit RISC based design, it is currently design to have the follow
 
 rX, rY and rZ are shorthand for register indexes, as a rule of thumb, register operations will kind of follow the pattern of rX being the destination register, rY being the first operand and rZ being the second one. And for immediate type operations, rZ is replaced by an immediate value, which will be the second operand.
 
-### Register operation
+### Register operation ( rOP types)
 
 | Byte 1 | Byte 2 | Byte 3 | Byte 4 | 
 | :-: | :-: | :-: | :-: 
-| 0.nnnnnn.x | xxxx.mm.oo | yyyyy.mm.o | o.zzzzz.00 |
+| 0.nnnnnn.x | xxxx.mm.oo | o.yyyyy.mm | ooo.zzzzz |
 
 | Bits - byte 1 | description |
 | :-: | :-: |
@@ -29,23 +29,32 @@ rX, rY and rZ are shorthand for register indexes, as a rule of thumb, register o
 | :-: | :-: |
 | 0-3 | lower 4 bits for rX index |
 | 4-5 | offset mode for rX |
-| 6-7 | offset value for rX ( from 1 to 4)|
+| 6-7 | upper 2 bits for the offset value for rX ( from 1 to 8)|
 
 | Bits - byte 3 | description |
 | :-: | :-: |
-| 0-4 | rY register index |
-| 5-6 | offset mode for rY |
-| 7 | upper bit for the offset value for rY |
+| 0 | lower bit for the offset value for rX |
+| 1-5 | rY register index |
+| 6-7 | offset mode for rY |
 
 | Bits - byte 4 | description |
 | :-: | :-: |
-| 0 | lower bit for the offset value for rY |
-| 1-5 | rZ index |
-| 6-7 | unused for now |
+| 0-2 | offset value for rY |
+| 3-7 | rZ index |
 
-The offset mode allows for algorithms that "scan" an area of memory, and also a software implementation of a stack.
+The offset mode allows for algorithms that "scan" an area of memory, and also a software implementation of a stack. If the instruction only uses a single operand , the rZ bits are ignored. There are also some instructions that don't use operands, in that case, the rY bits are also unused.
 
-### Immediate operation
+Offset modes:
+
+| Mode | Description |
+| :-: | :-: |
+| 00 | no offset |
+| 01 | increment and modify register |
+| 10 | decrement and modify register |
+| 11 | increment (not modifying the register) |
+
+
+### Immediate operation (iOP type)
 
 | Byte 1 | Byte 2 | Byte 3 | Byte 4 | 
 | :-: | :-: | :-: | :-: 
@@ -95,6 +104,58 @@ None of these registers are special, these names and uses are more of a standard
 | 0x0E | multiply/divide high register | 0x1E | interrupt pointer |
 | 0x0F | multiply/divide low register | 0x1F | stack pointer |
 
+There is also the flag register:
+| Bit | Description |
+| :-: | :-: |
+| 0 | carry |
+| 1 | borrow |
+| 2 | less than |
 
 ## Instructions
 
+Instuctions tend to follow the pattern of rX being the result register, rY being the first operand and rZ being the second operand.
+
+**NOTE:** For the docs, I made a few abbreviations for the sake of not having to write things like "the pointer inside register X", here are some of them:
+
+* rX, rY, rZ -> generally the result register, first operand and second operand in order. Some times this rule is broken for single operand or single register instructions, but it's a good rule of thumb for programming the ASTRA core. 
+* rN -> describe the Nth register, is also used as just shorthand for any register.  
+* imm16 -> a immediate 16-bit value, generally used for immediate operations.  
+* sImm16 -> treats the immediate value as a signed number, generally used for offset-related instructions.  
+* *rN -> treats the value of rN as a pointer.  
+
+### Memory operations
+
+| Instruction | type | description |
+| :-: | :-: | :-: |
+| LOAD | rOP | loads a value from address *rY into rX |
+| STORE | rOP | stores the value of rY into *rX |
+| MOV | rOP | moves the value of rY into rX |
+| SWAP | rOP | swaps the values of rX and rY |
+| LFR | rOP | Loads the contents of the flag register into rX |
+| SFR | rOP | Stores the contents of rX into the flag register |
+| WCL | rOP | if the cache line of *rX is dirty, write that back to memory now |
+| LLI | iOP | loads a imm16 value into the lower 16 bits of rX |
+| LUI | iOP | loads a imm16 value into the upper 16 bits of rX |
+| LSI | iOP | loads a sign-extended imm16 value into rX |
+| LDO | iOP | loads a value into rX from *rY + sImm16 |
+| STO | iOP | stores the value of rX into *rY + sImm16 |
+
+### Jump operations
+
+| Instruction | type | description |
+| :-: | :-: | :-: |
+| JMP | iOP | jumps to *rX + sImm16 |
+| JRT | rOP | jumps to *rX and saves the current address to rY |
+| JPE | rOP | jumps to *rX if rY == rZ, sets/resets the equal bit on the flag register |
+| JPL | rOP | jumps to *rX if rY < rZ , sets/resets the less than bit on the flag register |
+| CMP | rOP | compares rY and rZ and sets the flag register accordingly |
+| JPF | iOP | jumps to *rX if the Nth bit of the flag register is set ( N being an immediate value) |
+| JPNF | iOP | jumps to *rX if the Nth bit of the flag register is not set |
+
+### ALU operations
+
+| Instruction | type | description |
+| :-: | :-: | :-: |
+| ADD | rOP | rX = rY + rZ |
+| SUB | rOP | rX = rY - rZ |
+| MUL | rOP | rX = rY * rZ |
