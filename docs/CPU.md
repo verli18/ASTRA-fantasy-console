@@ -159,3 +159,7 @@ Instuctions tend to follow the pattern of rX being the result register, rY being
 | ADD | rOP | rX = rY + rZ |
 | SUB | rOP | rX = rY - rZ |
 | MUL | rOP | rX = rY * rZ |
+| AND | rOP | rX = rY & rZ |
+| OR | rOP | rX = rY \|\| rZ |
+| XOR | rOP | rX = rY ^ rZ |
+| NOT | rOP | rX = !rY |
