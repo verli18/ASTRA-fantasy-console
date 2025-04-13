@@ -1,0 +1,6 @@
+*.out
+*.o
+launch.json
+build/
+.vscode/
+legacy\ emu/backups/*
