@@ -4,3 +4,4 @@ launch.json
 build/
 .vscode/
 legacy\ emu/backups/*
+Makefile
