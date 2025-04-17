@@ -1,5 +1,6 @@
 *.out
 *.o
+*.bin
 launch.json
 build/
 .vscode/

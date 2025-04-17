@@ -127,8 +127,10 @@ Instuctions tend to follow the pattern of rX being the result register, rY being
 
 | Instruction | type | description |
 | :-: | :-: | :-: |
-| LOAD | rOP | loads a value from address *rY into rX |
-| STORE | rOP | stores the value of rY into *rX |
+| LODW | rOP | loads a word from address *rY into rX |
+| STRW | rOP | stores the word of rY into *rX |
+| LODB | rOP | loads a byte from address *rY[rZ] into rX|
+| STRB | rOP | stores the first byte of rX into *rY[rZ] |
 | MOV | rOP | moves the value of rY into rX |
 | SWAP | rOP | swaps the values of rX and rY |
 | LFR | rOP | Loads the contents of the flag register into rX |
@@ -163,3 +165,20 @@ Instuctions tend to follow the pattern of rX being the result register, rY being
 | OR | rOP | rX = rY \|\| rZ |
 | XOR | rOP | rX = rY ^ rZ |
 | NOT | rOP | rX = !rY |
+
+##Control ROM
+
+The control ROM is 256 words wide, it contains control signals for ASTRA, for all practical purposes, the programmer will never need to know or think about this, but I need to document it for programming the emulator.
+
+| bits | description |
+| :-: | :-: |
+| 0 | always 1 |
+| 1-2 | type of instruction (math, jump, memory) |
+| 3-6 | if it uses the ALU, what operation? (none, add, sub, and, or, xor, not, lshift, rshift, lrot, rrot, sign-extend) |
+| 7 | rOP/iOP select |
+
+
+
+
+
+

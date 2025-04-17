@@ -1,12 +1,8 @@
-#include "raylib.h"
-#include "stdlib.h"
-#include "stdint.h"
-#include "stdio.h"
-#include "CPU.c"
+#include "header.h"
 
 int main() {
     struct CPU cpuCore;
-    FILE *bin = fopen("test.bin", "rb");
+    FILE *bin = fopen("ruledef.bin", "rb");
     initConsole(&cpuCore, bin);
 
     while (!WindowShouldClose()) {
