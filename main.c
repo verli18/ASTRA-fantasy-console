@@ -10,15 +10,24 @@ int main() {
         if (IsKeyPressed(KEY_SPACE)) {
             execCycle(&cpuCore);
         }
-        if(IsKeyPressed(KEY_D)) { //dump dCache
-            printf("dCache:\n0x00000000: ");
-            for(int i = 0; i < 4096; i++) {
-                printf("%02X ", cpuCore.dCache[i]);
-                if((i + 1) % 16 == 0) {
-                    printf("\n0x%08X: ", i);
+        if(IsKeyPressed(KEY_D)) { // dump dCache with tags and dirty bit
+            printf("dCache:\n");
+            printf("------------------------------------------------------\n");
+            for(int line = 0; line < 256; line++) {
+                uint16_t tag = (cpuCore.dCacheTags[line * 2] << 8) | cpuCore.dCacheTags[line * 2 + 1];
+                uint8_t dirty = (tag & 0x0004) ? 1 : 0; 
+                uint16_t tagVal = (tag & 0x0FFF); // lower 12 bits for tag
+
+                printf("0x%02X | Tag: 0x%03X%s | Data: ", line, tagVal, dirty ? "*" : " ");
+                for(int b = 0; b < 16; b++) {
+                    printf("%02X ", cpuCore.dCache[line * 16 + b]);
+                    if ((b + 1) % 8 == 0 && b != 15) printf(" ");
                 }
+                printf("\n");
             }
+            printf("------------------------------------------------------\n\n");
         }
+        
 
         if(IsKeyPressed(KEY_R)) { //registers
             printf("Registers:\n");

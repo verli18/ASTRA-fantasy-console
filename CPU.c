@@ -3,53 +3,73 @@
 void initConsole(struct CPU *cpuCore, FILE *bin){
     InitWindow(640, 480, "ASTRA");
     //TODO: Implement cache logic
-    cpuCore->iCache = calloc(4096, sizeof(uint8_t));
-    cpuCore->dCache = calloc(4096, sizeof(uint8_t));
+    cpuCore->iCache = calloc(CACHE_SIZE, sizeof(uint8_t));
+    cpuCore->iCacheTags = calloc(256, 2); 
+    cpuCore->dCache = calloc(CACHE_SIZE, sizeof(uint8_t));
+    cpuCore->dCacheTags = calloc(256, 2);
     cpuCore->pc = cpuStartVec;
     for(int i = 0; i < 32; i++) {
         cpuCore->registers[i] = 0;
     }
 
-    fread(cpuCore->iCache, 1, 4096, bin);
+    fread(cpuCore->iCache, 1, CACHE_SIZE, bin);
+}
+
+bool isdCacheHit(struct CPU *cpuCore, uint32_t address) {
+    return (((cpuCore->dCacheTags[getLineIndex(address)] << 8) | cpuCore->dCacheTags[getLineIndex(address) + 1]) & 0x0FFF) == getTag(address);
 }
 
 //these will need to be expanded to work on cache later
-void writeWord(uint8_t *pointer, uint32_t address, uint32_t value) {
-    pointer[address] = (value >> 24) & 0xFF;
-    pointer[address + 1] = (value >> 16) & 0xFF;
-    pointer[address + 2] = (value >> 8) & 0xFF;
-    pointer[address + 3] = value & 0xFF;
+void writeWord(struct CPU *cpuCore, uint32_t address, uint32_t value) {
+    writeByte(cpuCore, address, value & 0xFF);
+    writeByte(cpuCore, address + 1, (value >> 8) & 0xFF);
+    writeByte(cpuCore, address + 2, (value >> 16) & 0xFF);
+    writeByte(cpuCore, address + 3, (value >> 24) & 0xFF);
 }
 
-void writeHalfWord(uint8_t *pointer, uint32_t address, uint32_t value) {
-    pointer[address] = (value >> 8) & 0xFF;
-    pointer[address + 1] = value & 0xFF;
+void writeHalfWord(struct CPU *cpuCore, uint32_t address, uint32_t value) {
+    writeByte(cpuCore, address, value & 0xFF);
+    writeByte(cpuCore, address + 1, (value >> 8) & 0xFF);
 }
 
-void writeByte(uint8_t *pointer, uint32_t address, uint32_t value) {
-    pointer[address] = value & 0xFF;
+void writeByte(struct CPU *cpuCore, uint32_t address, uint32_t value) {
+    bool dirty = (cpuCore->dCacheTags[getLineIndex(address)] & DIRTY_BIT);
+
+    if(isdCacheHit(cpuCore, address) || !dirty) {
+        cpuCore->dCache[getLineIndex(address) + (address & 0xF)] = value;
+        cpuCore->dCacheTags[getLineIndex(address)] = DIRTY_BIT | getTag(address);
+    }
+    if(dirty) {
+        printf("Line is dirty, need to write to memory\n");
+    }
 }
-uint32_t fetchInstructionWord(uint8_t *pointer, uint32_t address) {
-    return (pointer[address] << 24) | 
-    (pointer[address + 1] << 16) | 
-    (pointer[address + 2] << 8) | 
-    pointer[address + 3];
+uint32_t fetchInstructionWord(struct CPU *cpuCore, uint32_t address) {
+    return (cpuCore->iCache[address] << 24) | 
+    (cpuCore->iCache[address + 1] << 16) | 
+    (cpuCore->iCache[address + 2] << 8) | 
+    cpuCore->iCache[address + 3];
 }
 
-uint32_t fetchWord(uint8_t *pointer, uint32_t address) {
-    return (pointer[address] << 24) | 
-    (pointer[address + 1] << 16) | 
-    (pointer[address + 2] << 8) | 
-    pointer[address + 3];
+uint32_t fetchWord(struct CPU *cpuCore, uint32_t address) {
+    if(isdCacheHit(cpuCore, address)) {
+        return (cpuCore->dCache[address] << 24) | 
+        (cpuCore->dCache[address + 1] << 16) | 
+        (cpuCore->dCache[address + 2] << 8) | 
+        cpuCore->dCache[address + 3];
+    }
+    else {
+        printf("Cache miss, need to fetch from memory\n");
+        return fetchInstructionWord(cpuCore, address);
+    }
 }
 
-uint32_t fetchHalfWord(uint8_t *pointer, uint32_t address) {
-    return (pointer[address] << 8) | 
-    (pointer[address + 1]);
+uint32_t fetchHalfWord(struct CPU *cpuCore, uint32_t address) {
+    return (cpuCore->dCache[address] << 8) | 
+    (cpuCore->dCache[address + 1]);
 }
 
-uint32_t fetchByte(uint8_t *pointer, uint32_t address) {
-    return pointer[address];
+uint32_t fetchByte(struct CPU *cpuCore, uint32_t address) {
+    return cpuCore->dCache[address];
 }
     
 uint32_t signExtend(uint32_t value) {
@@ -64,7 +84,7 @@ uint32_t signExtend(uint32_t value) {
 
 pipelineInstruction instructionFetch( struct CPU *cpuCore) {
     pipelineInstruction fetch;
-    fetch.instFetch = fetchWord(cpuCore->iCache, cpuCore->pc);
+    fetch.instFetch = fetchInstructionWord(cpuCore, cpuCore->pc);
     cpuCore->pc += 4;
     fetch.status = 1;
     return fetch;
@@ -74,18 +94,18 @@ pipelineInstruction instructionDecode(struct CPU *cpuCore, pipelineInstruction d
     int instruction = decode.instFetch;
 
     if ((instruction & 0x80000000) == 0) { //register operation
-        decode.tRegisters[0] = cpuCore->registers[(instruction & 0x01F00000) >> 20];
-        decode.tRegisters[1] = cpuCore->registers[(instruction & 0x00007C00) >> 10];
-        decode.tRegisters[2] = cpuCore->registers[(instruction & 0x0000001F)];
+        decode.tRegisters[regX] = cpuCore->registers[(instruction & 0x01F00000) >> 20];
+        decode.tRegisters[regY] = cpuCore->registers[(instruction & 0x00007C00) >> 10];
+        decode.tRegisters[regZ] = cpuCore->registers[(instruction & 0x0000001F)];
         decode.rX = (instruction & 0x01F00000) >> 20;
         decode.rY = (instruction & 0x00007C00) >> 10;
         decode.rZ = (instruction & 0x0000001F);
         decode.isImmediate = false;
     }
     else { //immediate operation
-        decode.tRegisters[0] = cpuCore->registers[(instruction & 0x01F00000) >> 20];
-        decode.tRegisters[1] = cpuCore->registers[(instruction & 0x00007C00) >> 10];
-        decode.tRegisters[3] = (instruction & 0x0000FFFF);
+        decode.tRegisters[regX] = cpuCore->registers[(instruction & 0x01F00000) >> 20];
+        decode.tRegisters[regY] = cpuCore->registers[(instruction & 0x00007C00) >> 10];
+        decode.tRegisters[imm] = (instruction & 0x0000FFFF);
         decode.rX = (instruction & 0x01F00000) >> 20;
         decode.rY = (instruction & 0x00007C00) >> 10;
         decode.isImmediate = true;
@@ -95,68 +115,68 @@ pipelineInstruction instructionDecode(struct CPU *cpuCore, pipelineInstruction d
 
 pipelineInstruction instructionExecute(struct CPU *cpuCore, pipelineInstruction execute) {
     if (execute.isImmediate == false) {
-        switch ((execute.instFetch >> 24)) { // operation type
+        switch ((execute.instFetch >> 25)) { // operation type
             case 0x00: // LOADW
 
              break;
-            case 0x02: //STOREW
+            case 0x01: //STOREW
 
              break;
-            case 0x04: //LODH
+            case 0x02: //LODH
 
              break;
-            case 0x06: //STRH
+            case 0x03: //STRH
 
              break;
-            case 0x08: //LODB
+            case 0x04: //LODB
 
              break;
-            case 0x0A: //STRB
+            case 0x05: //STRB
 
              break;
-            case 0x0C: //MOV
-                execute.tRegisters[0] = execute.tRegisters[1];
+            case 0x06: //MOV
+                execute.tRegisters[regX] = execute.tRegisters[regY];
              break;
-            case 0x0E: //SWAP
-                uint32_t temp = execute.tRegisters[0];
-                execute.tRegisters[0] = execute.tRegisters[1];
-                execute.tRegisters[1] = temp;
+            case 0x07: //SWAP
+                uint32_t temp = execute.tRegisters[regX];
+                execute.tRegisters[regX] = execute.tRegisters[regY];
+                execute.tRegisters[regY] = temp;
              break;
-            case 0x10: //LFR
-                execute.tRegisters[0] = cpuCore->flagRegister;
+            case 0x08: //LFR
+                execute.tRegisters[regX] = cpuCore->flagRegister;
              break;
-            case 0x12: //SFR
-                cpuCore->flagRegister = execute.tRegisters[0];
+            case 0x09: //SFR
+                cpuCore->flagRegister = execute.tRegisters[regX];
              break;
-            case 0x14: //WCL
+            case 0x0A: //WCL
              break;
-            case 0x16: //LLI
-                execute.tRegisters[0] = (execute.tRegisters[3]);
+            case 0x0B: //LLI
+                execute.tRegisters[regX] = (execute.tRegisters[imm]);
              break;
-            case 0x18: //LUI
-                execute.tRegisters[0] = (execute.tRegisters[3] << 16);
+            case 0x0C: //LUI
+                execute.tRegisters[regX] = (execute.tRegisters[imm] << 16);
              break;
-            case 0x1A: //LSI
-                execute.tRegisters[0] = signExtend(execute.tRegisters[3]);
+            case 0x0D: //LSI
+                execute.tRegisters[regX] = signExtend(execute.tRegisters[imm]);
              break;
-            case 0x1C: //LDO
-                execute.tRegisters[0] = fetchWord(cpuCore->dCache, execute.tRegisters[1] + signExtend(execute.tRegisters[3]));
+            case 0x0E: //LDO
+                execute.tRegisters[regX] = execute.tRegisters[regY] + signExtend(execute.tRegisters[imm]);
              break;
-            case 0x1E: //STO
-                writeWord(cpuCore->dCache, execute.tRegisters[1] + signExtend(execute.tRegisters[3]), execute.tRegisters[0]);
+            case 0x0F: //STO
+                execute.tRegisters[regX] = execute.tRegisters[regY] + signExtend(execute.tRegisters[imm]);
              break;         
         }
     }
     else {
         switch(execute.instFetch >> 26) {
-            case 0xAC: //LLI
-                execute.tRegisters[0] = (execute.tRegisters[3]);
+            case 0x2B: //LLI
+                execute.tRegisters[regX] = (execute.tRegisters[imm]);
             break;
-            case 0xB0: //LUI
-                execute.tRegisters[0] = (execute.tRegisters[3] << 16);
+            case 0x2C: //LUI
+                execute.tRegisters[regX] = (execute.tRegisters[imm] << 16);
             break;
-            case 0xB4: //LSI
-                execute.tRegisters[0] = signExtend(execute.tRegisters[3]);
+            case 0x2D: //LSI
+                execute.tRegisters[regX] = signExtend(execute.tRegisters[imm]);
             break;
         }
     }
@@ -167,22 +187,22 @@ pipelineInstruction instructionMemory(struct CPU *cpuCore, pipelineInstruction m
     if (memory.isImmediate == false) {
         switch(memory.instFetch >> 25) {
             case 0x01: //LOADW
-                memory.tRegisters[0] = fetchWord(cpuCore->dCache, memory.tRegisters[1]);
+                memory.tRegisters[regX] = fetchWord(cpuCore, memory.tRegisters[regY]);
             break;
             case 0x02: //STOREW
-                writeWord(cpuCore->dCache, memory.tRegisters[0], memory.tRegisters[1]);
+                writeWord(cpuCore, memory.tRegisters[regX], memory.tRegisters[regY]);
             break;
             case 0x03: //LODH
-                memory.tRegisters[0] = fetchHalfWord(cpuCore->dCache, memory.tRegisters[1]);
+                memory.tRegisters[regX] = fetchHalfWord(cpuCore, memory.tRegisters[regY]);
             break;
             case 0x04: //STRH
-                writeHalfWord(cpuCore->dCache, memory.tRegisters[0], memory.tRegisters[1]);
+                writeHalfWord(cpuCore, memory.tRegisters[regX], memory.tRegisters[regY]);
             break;
             case 0x05: //LODB
-                memory.tRegisters[0] = fetchByte(cpuCore->dCache, memory.tRegisters[1]);
+                memory.tRegisters[regX] = fetchByte(cpuCore, memory.tRegisters[regY]);
             break;
             case 0x06: //STRB
-                writeByte(cpuCore->dCache, memory.tRegisters[0], memory.tRegisters[1]);
+                writeByte(cpuCore, memory.tRegisters[regX], memory.tRegisters[regY]);
             break;
         }
     }
@@ -194,7 +214,7 @@ pipelineInstruction instructionMemory(struct CPU *cpuCore, pipelineInstruction m
 }
 
 pipelineInstruction instructionWriteBack(struct CPU *cpuCore, pipelineInstruction writeBack) {
-    cpuCore->registers[writeBack.rX] = writeBack.tRegisters[0];
+    cpuCore->registers[writeBack.rX] = writeBack.tRegisters[regX];
     return writeBack;
 }
 

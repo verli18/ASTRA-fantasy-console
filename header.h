@@ -4,6 +4,13 @@
 #include "stdio.h"
 
 #define cpuStartVec 0x00000000
+#define DIRTY_BIT 0x2000
+#define VALID_BIT 0x1000
+#define CACHE_SIZE 4096
+#define regX 0
+#define regY 1
+#define regZ 2
+#define imm 3
 
 typedef struct pipelineInstruction {
     uint32_t status;
@@ -25,14 +32,25 @@ struct CPU {
 };
 
 //helper functions
-uint32_t fetchInstructionWord(uint8_t *pointer, uint32_t address);
-uint32_t fetchWord(uint8_t *pointer, uint32_t address);
-uint32_t fetchHalfWord(uint8_t *pointer, uint32_t address);
-uint32_t fetchByte(uint8_t *pointer, uint32_t address);
-void writeWord(uint8_t *pointer, uint32_t address, uint32_t value);
-void writeHalfWord(uint8_t *pointer, uint32_t address, uint32_t value);
-void writeByte(uint8_t *pointer, uint32_t address, uint32_t value);
+bool isdCacheHit(struct CPU *cpuCore, uint32_t address);
+static inline uint32_t getTag(uint32_t address) {
+    return (address >> 12) & 0x00000FFF;}
+    
+static inline uint32_t getLineIndex(uint32_t address) {
+    return (address >> 4) & 0xFF;}
+
+//memory related functions
+uint32_t fetchInstructionWord(struct CPU *cpuCore, uint32_t address);
+uint32_t fetchWord(struct CPU *cpuCore, uint32_t address);
+uint32_t fetchHalfWord(struct CPU *cpuCore, uint32_t address);
+uint32_t fetchByte(struct CPU *cpuCore, uint32_t address);
+void writeWord(struct CPU *cpuCore, uint32_t address, uint32_t value);
+void writeHalfWord(struct CPU *cpuCore, uint32_t address, uint32_t value);
+void writeByte(struct CPU *cpuCore, uint32_t address, uint32_t value);
+
+//math functions
 uint32_t signExtend(uint32_t value);
+
 //other functions
 void initConsole(struct CPU *cpuCore, FILE *bin);
 

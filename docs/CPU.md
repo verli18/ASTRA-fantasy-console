@@ -76,10 +76,14 @@ Byte 3 and 4 are an immediate value, it may be signed or unsigned, depends on th
 
 ## Cache
 
-As many other parts of this system, I have not finalized this yet ( I know, probably like the 5th time I said this), so please don't think too deeply about this ( and if you do, please tell them to me!! I'm desperate for feedback on this lol).
+Since ASTRA uses 24-bit addresses and the cache lines are 16 bytes wide
+the tag is 12 bits wide and the index is 8 bits wide. The cache has a separate piece of memory for the tags:
 
-The ammount of cycles needed to access RAM has not yet been decided, but it'll be significant for sure, because of that, the CPU has access to 4kb of instruction cache and 4kb of data cache. The cache uses 16 byte cache lines and utilizes direct mapping, it is also write deferred, as accessing memory would be too slow for write through and could clog up the main memory bus.
-
+| bits | description |
+| :-: | :-: |
+| 0-1 | unused |
+| 2-3 | dirty/valid bit |
+| 4-15 | tag |
 
 ## Registers
 
