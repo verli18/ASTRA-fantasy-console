@@ -129,8 +129,10 @@ Instuctions tend to follow the pattern of rX being the result register, rY being
 | :-: | :-: | :-: |
 | LODW | rOP | loads a word from address *rY into rX |
 | STRW | rOP | stores the word of rY into *rX |
-| LODB | rOP | loads a byte from address *rY[rZ] into rX|
-| STRB | rOP | stores the first byte of rX into *rY[rZ] |
+| LODH | rOP | loads a half-word from address *rY into rX |
+| STRH | rOP | stores the half-word of rY into *rX |
+| LODB | rOP | loads a byte from address *rY into rX|
+| STRB | rOP | stores the first byte of rY into *rX |
 | MOV | rOP | moves the value of rY into rX |
 | SWAP | rOP | swaps the values of rX and rY |
 | LFR | rOP | Loads the contents of the flag register into rX |
