@@ -1,6 +1,6 @@
 #include "header.h"
 
-void initConsole(struct CPU *cpuCore, FILE *bin){
+void initConsole(cpu *cpuCore, FILE *bin){
     InitWindow(640, 480, "ASTRA");
     //TODO: Implement cache logic
     cpuCore->iCache = calloc(CACHE_SIZE, sizeof(uint8_t));
@@ -15,24 +15,28 @@ void initConsole(struct CPU *cpuCore, FILE *bin){
     fread(cpuCore->iCache, 1, CACHE_SIZE, bin);
 }
 
-bool isdCacheHit(struct CPU *cpuCore, uint32_t address) {
+void initInstructionArray(instFunc *array) {
+    array[0] = LODW;
+}
+
+bool isdCacheHit(cpu *cpuCore, uint32_t address) {
     return (((cpuCore->dCacheTags[getLineIndex(address)] << 8) | cpuCore->dCacheTags[getLineIndex(address) + 1]) & 0x0FFF) == getTag(address);
 }
 
 //these will need to be expanded to work on cache later
-void writeWord(struct CPU *cpuCore, uint32_t address, uint32_t value) {
+void writeWord(cpu *cpuCore, uint32_t address, uint32_t value) {
     writeByte(cpuCore, address, value & 0xFF);
     writeByte(cpuCore, address + 1, (value >> 8) & 0xFF);
     writeByte(cpuCore, address + 2, (value >> 16) & 0xFF);
     writeByte(cpuCore, address + 3, (value >> 24) & 0xFF);
 }
 
-void writeHalfWord(struct CPU *cpuCore, uint32_t address, uint32_t value) {
+void writeHalfWord(cpu *cpuCore, uint32_t address, uint32_t value) {
     writeByte(cpuCore, address, value & 0xFF);
     writeByte(cpuCore, address + 1, (value >> 8) & 0xFF);
 }
 
-void writeByte(struct CPU *cpuCore, uint32_t address, uint32_t value) {
+void writeByte(cpu *cpuCore, uint32_t address, uint32_t value) {
     bool dirty = (cpuCore->dCacheTags[getLineIndex(address)] & DIRTY_BIT);
 
     if(isdCacheHit(cpuCore, address) || !dirty) {
@@ -43,14 +47,14 @@ void writeByte(struct CPU *cpuCore, uint32_t address, uint32_t value) {
         printf("Line is dirty, need to write to memory\n");
     }
 }
-uint32_t fetchInstructionWord(struct CPU *cpuCore, uint32_t address) {
+uint32_t fetchInstructionWord(cpu *cpuCore, uint32_t address) {
     return (cpuCore->iCache[address] << 24) | 
     (cpuCore->iCache[address + 1] << 16) | 
     (cpuCore->iCache[address + 2] << 8) | 
     cpuCore->iCache[address + 3];
 }
 
-uint32_t fetchWord(struct CPU *cpuCore, uint32_t address) {
+uint32_t fetchWord(cpu *cpuCore, uint32_t address) {
     if(isdCacheHit(cpuCore, address)) {
         return (cpuCore->dCache[address] << 24) | 
         (cpuCore->dCache[address + 1] << 16) | 
@@ -63,12 +67,12 @@ uint32_t fetchWord(struct CPU *cpuCore, uint32_t address) {
     }
 }
 
-uint32_t fetchHalfWord(struct CPU *cpuCore, uint32_t address) {
+uint32_t fetchHalfWord(cpu *cpuCore, uint32_t address) {
     return (cpuCore->dCache[address] << 8) | 
     (cpuCore->dCache[address + 1]);
 }
 
-uint32_t fetchByte(struct CPU *cpuCore, uint32_t address) {
+uint32_t fetchByte(cpu *cpuCore, uint32_t address) {
     return cpuCore->dCache[address];
 }
     
@@ -81,8 +85,25 @@ uint32_t signExtend(uint32_t value) {
     }
     return value;
 }
-
-pipelineInstruction instructionFetch( struct CPU *cpuCore) {
+pipelineInstruction LODW(cpu *cpuCore, pipelineInstruction inst) {
+    switch(inst.stage){
+        case 1:
+            inst = instructionFetch(cpuCore);
+         break;
+        case 2:
+            inst = instructionDecode(cpuCore, inst);
+         break;
+        case 3:
+         break;
+        case 4:
+         break;
+        case 5:
+         break;
+    }
+    inst.stage++;
+    return inst;
+}
+pipelineInstruction instructionFetch( cpu *cpuCore) {
     pipelineInstruction fetch;
     fetch.instFetch = fetchInstructionWord(cpuCore, cpuCore->pc);
     cpuCore->pc += 4;
@@ -90,7 +111,7 @@ pipelineInstruction instructionFetch( struct CPU *cpuCore) {
     return fetch;
 }
 
-pipelineInstruction instructionDecode(struct CPU *cpuCore, pipelineInstruction decode) {
+pipelineInstruction instructionDecode(cpu *cpuCore, pipelineInstruction decode) {
     int instruction = decode.instFetch;
 
     if ((instruction & 0x80000000) == 0) { //register operation
@@ -113,7 +134,7 @@ pipelineInstruction instructionDecode(struct CPU *cpuCore, pipelineInstruction d
     return decode;
 }
 
-pipelineInstruction instructionExecute(struct CPU *cpuCore, pipelineInstruction execute) {
+pipelineInstruction instructionExecute(cpu *cpuCore, pipelineInstruction execute) {
     if (execute.isImmediate == false) {
         switch ((execute.instFetch >> 25)) { // operation type
             case 0x00: // LOADW
@@ -183,7 +204,7 @@ pipelineInstruction instructionExecute(struct CPU *cpuCore, pipelineInstruction 
     return execute;
 }
 
-pipelineInstruction instructionMemory(struct CPU *cpuCore, pipelineInstruction memory) {
+pipelineInstruction instructionMemory(cpu *cpuCore, pipelineInstruction memory) {
     if (memory.isImmediate == false) {
         switch(memory.instFetch >> 25) {
             case 0x01: //LOADW
@@ -213,12 +234,12 @@ pipelineInstruction instructionMemory(struct CPU *cpuCore, pipelineInstruction m
     return memory;
 }
 
-pipelineInstruction instructionWriteBack(struct CPU *cpuCore, pipelineInstruction writeBack) {
+pipelineInstruction instructionWriteBack(cpu *cpuCore, pipelineInstruction writeBack) {
     cpuCore->registers[writeBack.rX] = writeBack.tRegisters[regX];
     return writeBack;
 }
 
-int execCycle(struct CPU *cpuCore) {
+int execCycle(cpu *cpuCore) {
 
     cpuCore->pipelineStage[4] = instructionWriteBack(cpuCore, cpuCore->pipelineStage[3]);
     cpuCore->pipelineStage[3] = instructionMemory(cpuCore, cpuCore->pipelineStage[2]);

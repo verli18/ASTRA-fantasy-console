@@ -14,13 +14,14 @@
 
 typedef struct pipelineInstruction {
     uint32_t status;
+    uint8_t stage;
     uint32_t instFetch;
     uint32_t tRegisters[4];
     uint8_t rX, rY, rZ;
     bool isImmediate;
 } pipelineInstruction;
 
-struct CPU {
+typedef struct CPU {
     uint32_t registers[32];
     pipelineInstruction pipelineStage[5];
     uint32_t pc;
@@ -29,7 +30,13 @@ struct CPU {
     uint8_t *iCacheTags;
     uint8_t *dCache;
     uint8_t *dCacheTags;
-};
+} cpu;
+
+//array of instruction functions
+typedef pipelineInstruction(*instFunc)(cpu*, pipelineInstruction);
+
+//instruction functions
+pipelineInstruction LODW(cpu *cpuCore, pipelineInstruction inst);
 
 //helper functions
 bool isdCacheHit(struct CPU *cpuCore, uint32_t address);
@@ -53,7 +60,7 @@ uint32_t signExtend(uint32_t value);
 
 //other functions
 void initConsole(struct CPU *cpuCore, FILE *bin);
-
+void initInstructionArray(instFunc *array);
 //execution related functions
 pipelineInstruction instructionFetch( struct CPU *cpuCore);
 pipelineInstruction instructionDecode(struct CPU *cpuCore, pipelineInstruction decode);

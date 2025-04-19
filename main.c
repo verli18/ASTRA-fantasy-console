@@ -1,9 +1,12 @@
 #include "header.h"
 
 int main() {
-    struct CPU cpuCore;
+    cpu cpuCore;
     FILE *bin = fopen("ruledef.bin", "rb");
     initConsole(&cpuCore, bin);
+
+    instFunc instructionArray[16];
+    initInstructionArray(instructionArray);
 
     while (!WindowShouldClose()) {
         // Check for key press to advance the cycle
