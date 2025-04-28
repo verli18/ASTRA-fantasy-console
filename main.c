@@ -5,9 +5,6 @@ int main() {
     FILE *bin = fopen("ruledef.bin", "rb");
     initConsole(&cpuCore, bin);
 
-    instFunc instructionArray[16];
-    initInstructionArray(instructionArray);
-
     while (!WindowShouldClose()) {
         // Check for key press to advance the cycle
         if (IsKeyPressed(KEY_SPACE)) {
