@@ -74,23 +74,18 @@ uint32_t fetchByte(cpu *cpuCore, uint32_t address) {
 
 uint32_t signExtend20(uint32_t value) {
   if ((value & 0xFFFFF) != 0) {
-  }
+    value = value | 0xFFF00000;
+    } else {
+        value = value & 0x000FFFFF;
+    }
   return value;
 }
+
 uint32_t signExtend12(uint32_t value) {
   if ((value & 0x800) != 0) {
     value = value | 0xFFFFF000;
   } else {
     value = value & 0x00000FFF;
-  }
-  return value;
-}
-
-uint32_t signExtend7(uint32_t value){
-  if ((value & 0x40) != 0) {
-    value = value | 0xFFFFFF80;
-  } else{
-    value = value & 0x0000007F;
   }
   return value;
 }
@@ -103,58 +98,84 @@ pipelineInstruction instructionFetch(cpu *cpuCore) {
   return fetch;
 }
 
-pipelineInstruction instructionDecode(cpu *cpuCore, pipelineInstruction decode) {
-  int instruction = decode.instFetch;
+pipelineInstruction instructionDecode(pipelineInstruction decode) {
+    uint32_t inst = decode.instFetch;
+    uint32_t rs1, rs2, rd, funct3, funct7, imm;
 
-  decode.opCode = decode.instFetch & 0b01111111;
-  switch (decode.opCode) {
-  case mReg:
-    decode.rs1 = (decode.instFetch & 0xF8000) >> 15;
-    decode.rs2 = (decode.instFetch & 0x1F00000) >> 20;
-    decode.rd = (decode.instFetch & 0xF80) >> 7;
-    decode.funct7 = (decode.instFetch & 0xFE000000) >> 25;
-    decode.funct3 = (decode.instFetch & 0x7000) >> 12;
-    break;
-  case mImm:
-    decode.rs1 = (decode.instFetch & 0xF8000) >> 15;
-    decode.rd = (decode.instFetch & 0xF80) >> 7;
-    decode.tRegisters[IMM] = signExtend12((decode.instFetch & 0xFFF00000) >> 20);
-    decode.funct3 = (decode.instFetch & 0x7000) >> 12;
-    break;
-  case load:
-    decode.rs1 = (decode.instFetch & 0xF8000) >> 15;
-    decode.rd = (decode.instFetch & 0xF80) >> 7;
-    decode.tRegisters[IMM] = signExtend12((decode.instFetch & 0xFFF00000) >> 20);
-    decode.funct3 = (decode.instFetch & 0x7000) >> 12;
-    break;
-  case store:
-    decode.rs1 = (decode.instFetch & 0xF8000) >> 15;
-    decode.rs2 = (decode.instFetch & 0x1F00000) >> 20;
-    decode.funct3 = (decode.instFetch & 0x7000) >> 12;
-
-    break;
-  case branch:
-    break;
-  case jal:
-    break;
-  case jalr:
-    break;
+    decode.opCode = inst & 0b01111111;
+    switch (decode.opCode) {
+    case mReg:
+        rs1 = (inst & 0xF8000) >> 15;
+        rs2 = (inst & 0x1F00000) >> 20;
+        rd = (inst & 0xF80) >> 7;
+        funct7 = (inst & 0xFE000000) >> 25;
+        funct3 = (inst & 0x7000) >> 12;
+     break;
+    case mImm:
+        rs1 = (inst & 0xF8000) >> 15;
+        rd = (inst & 0xF80) >> 7;
+        imm = signExtend12((inst & 0xFFF00000) >> 20);
+        funct3 = (inst & 0x7000) >> 12;
+     break;
+    case load:
+        rs1 = (inst & 0xF8000) >> 15;
+        rd = (inst & 0xF80) >> 7;
+        imm = signExtend12((inst & 0xFFF00000) >> 20);
+        funct3 = (inst & 0x7000) >> 12;
+     break;
+    case store:
+        rs1 = (inst & 0xF8000) >> 15;
+        rs2 = (inst & 0x1F00000) >> 20;
+        funct3 = (inst & 0x7000) >> 12;
+        imm = signExtend12( (decode.instFetch >> 20) | ( (decode.instFetch >> 7) & 0x1F));
+     break;
+    case branch:
+        rs1 = (inst & 0xF8000) >> 15;
+        rs2 = (inst & 0x1F00000) >> 20;
+        funct3 = (inst & 0x7000) >> 12;
+        imm = signExtend12( ((inst & 0xF00) >> 8) | ((inst & 0x7E000000) >> 17) |
+                            ((inst & 0x80) << 7) | ((inst & 0x80000000) >> 16)) << 1;
+     break;
+    case jal:  //why does risc-v make decoding this so hard???
+        rd = (inst & 0xF80) >> 7;
+        imm = signExtend20( ((inst & 0x7FE00000) >> 21) | ((inst & 0x100000) >> 10) | 
+                            (inst & 0xFF000) | ((inst & 0x80000000) >> 11)) << 1;
+     break;
+    case jalr:
+        rs1 = (inst & 0xF8000) >> 15;
+        rd = (inst & 0xF80) >> 7;
+        imm = signExtend12((inst & 0xFFF00000) >> 20);
+        funct3 = (inst & 0x7000) >> 12;
+     break;
     case lui: // TODO: this needs to be sign extended 
-    decode.tRegisters[IMM] = decode.instFetch & 0xFFFFF000;
-    decode.rd = (decode.instFetch & 0xF80) >> 7;
-    break;
-  case auipc:
-    break;
-  case sys:
-    break;
-  }
+        imm =  signExtend20(decode.instFetch >> 12);
+        rd = (inst & 0xF80) >> 7;
+     break;
+    case auipc:
+        imm =  signExtend20(decode.instFetch >> 12);
+        rd = (inst & 0xF80) >> 7;
+     break;
+    case sys:
+        rs1 = (inst & 0xF8000) >> 15;
+        rd = (inst & 0xF80) >> 7;
+        imm = signExtend12((inst & 0xFFF00000) >> 20);
+        funct3 = (inst & 0x7000) >> 12;
+     break;
+    }
+
+    decode.rs1 = rs1;
+    decode.rs2 = rs2;
+    decode.rd = rd;
+    decode.funct3 = funct3;
+    decode.funct7 = funct7;
+    decode.tRegisters[IMM] = imm;
 
   return decode;
 }
 
 int execCycle(cpu *cpuCore) {
 
-  cpuCore->pipelineStage[1] = instructionDecode(cpuCore, cpuCore->pipelineStage[0]);
+  cpuCore->pipelineStage[1] = instructionDecode(cpuCore->pipelineStage[0]);
   cpuCore->pipelineStage[0] = instructionFetch(cpuCore);
 
   printf("new cycle-----------------------------\n");

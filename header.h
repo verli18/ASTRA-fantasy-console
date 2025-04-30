@@ -72,7 +72,7 @@ void initConsole(struct cpu *cpuCore, FILE *bin);
 // execution related functions
 
 pipelineInstruction instructionFetch(cpu *cpuCore);
-pipelineInstruction instructionDecode(cpu *cpuCore, pipelineInstruction decode);
+pipelineInstruction instructionDecode(pipelineInstruction decode);
 pipelineInstruction instructionExecute(cpu *cpuCore,
                                        pipelineInstruction decode);
 pipelineInstruction instructionMemory(cpu *cpuCore, pipelineInstruction decode);
