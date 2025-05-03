@@ -3,18 +3,21 @@
 #include "stdio.h"
 #include "stdlib.h"
 
-#define cpuStartVec 0x00000000
+#define DEBUG_BLUE (Color){0, 0, 20, 240}
+#define DEBUG_TEXT (Color){9, 127, 217, 255}
+
+#define CPUSTARTVEC 0x00001000
 #define DIRTY_BIT 0x2000
 #define VALID_BIT 0x1000
-#define CACHE_SIZE 4096
+#define CACHE_SIZE 0xC000
 #define RS1 0
 #define RS2 1
 #define RD 2
 #define IMM 3
 
 // opCodes
-#define mImm 0b0110011
-#define mReg 0b0010011
+#define mImm 0b0010011
+#define mReg 0b0110011
 #define load 0b0000011
 #define store 0b0100011
 #define branch 0b1100011
@@ -23,6 +26,7 @@
 #define lui 0b0110111
 #define auipc 0b0010111
 #define sys 0b11100111
+#define NOP 0x00000013
 
 typedef struct pipelineInstruction {
   uint32_t status;
@@ -32,11 +36,14 @@ typedef struct pipelineInstruction {
   uint8_t rs1, rs2, rd;
   uint8_t funct3, funct7;
   uint8_t opCode;
+  uint8_t stall;
+  char *mnemonic; //Will remove later, but makes it easier to read and debug.
 } pipelineInstruction;
 
 typedef struct cpu {
   uint32_t registers[32];
   pipelineInstruction pipelineStage[5];
+  pipelineInstruction nop;
   uint32_t pc;
   uint32_t flagRegister;
   uint8_t *iCache;
@@ -72,13 +79,14 @@ void initConsole(struct cpu *cpuCore, FILE *bin);
 // execution related functions
 
 pipelineInstruction instructionFetch(cpu *cpuCore);
-pipelineInstruction instructionDecode(pipelineInstruction decode);
-pipelineInstruction instructionExecute(cpu *cpuCore,
-                                       pipelineInstruction decode);
-pipelineInstruction instructionMemory(cpu *cpuCore, pipelineInstruction decode);
-pipelineInstruction instructionWrite(cpu *cpuCore, pipelineInstruction decode);
+pipelineInstruction instructionDecode(cpu *cpuCore, pipelineInstruction decode);
+pipelineInstruction instructionExecute(cpu *cpuCore, pipelineInstruction execute);
+pipelineInstruction instructionMemory(cpu *cpuCore, pipelineInstruction memory);
+pipelineInstruction instructionWrite(cpu *cpuCore, pipelineInstruction write);
 
 int execCycle(struct cpu *cpuCore);
 
 // debug functions
-void printPipelineStage(pipelineInstruction stage, const char *stageName);
+void drawRegisters(cpu *cpuCore);
+void drawPipelineStages(cpu *cpuCore);
+void drawStage(int yOffset, pipelineInstruction instruction, const char* instName);
