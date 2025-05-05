@@ -5,6 +5,7 @@
 
 #define DEBUG_BLUE (Color){0, 0, 20, 240}
 #define DEBUG_TEXT (Color){9, 127, 217, 255}
+#define STEP_MODE true
 
 #define CPUSTARTVEC 0x00001000
 #define DIRTY_BIT 0x2000
@@ -32,6 +33,7 @@ typedef struct pipelineInstruction {
   uint32_t status;
   uint8_t stage;
   uint32_t instFetch;
+  uint32_t pcFetch;
   uint32_t tRegisters[4];
   uint8_t rs1, rs2, rd;
   uint8_t funct3, funct7;
@@ -76,6 +78,7 @@ uint32_t signExtend(uint32_t value, uint8_t size);
 
 // other functions
 void initConsole(struct cpu *cpuCore, FILE *bin);
+pipelineInstruction clearPipelineStage(pipelineInstruction inst);
 // execution related functions
 
 pipelineInstruction instructionFetch(cpu *cpuCore);

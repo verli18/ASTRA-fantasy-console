@@ -1,4 +1,5 @@
 #include "header.h"
+#include <raylib.h>
 
 int main(int argc, const char* argv[]) {
   cpu cpuCore;
@@ -9,11 +10,17 @@ int main(int argc, const char* argv[]) {
   }
   FILE *bin = fopen(argv[1], "rb");
   initConsole(&cpuCore, bin);
+  SetTargetFPS(10);
 
     while (!WindowShouldClose()) {
       // Check for key press to advance the cycle
-      if (IsKeyPressed(KEY_SPACE)) {
-            execCycle(&cpuCore);
+      if(STEP_MODE){
+        if (IsKeyPressed(KEY_SPACE)) {
+          execCycle(&cpuCore);
+        }
+      }
+      else{
+        execCycle(&cpuCore);
       }
  
       BeginDrawing();
